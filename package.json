@@ -1,0 +1,21 @@
+{
+  "name": "azure-devops-move-to-bottom",
+  "version": "1.0.0",
+  "description": "Azure DevOps extension adding a 'Move to bottom' command to the backlog item context menu.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "webpack --mode production",
+    "package": "npm run build && tfx extension create --manifest-globs vss-extension.json --output-path dist",
+    "publish": "npm run build && tfx extension publish --manifest-globs vss-extension.json --output-path dist"
+  },
+  "devDependencies": {
+    "azure-devops-extension-api": "^5.273.0",
+    "azure-devops-extension-sdk": "^4.0.0",
+    "tfx-cli": "^0.21.1",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.4.5",
+    "webpack": "^5.94.0",
+    "webpack-cli": "^5.1.4"
+  }
+}

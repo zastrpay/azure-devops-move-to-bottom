@@ -1,0 +1,44 @@
+{
+  "manifestVersion": 1,
+  "id": "move-to-bottom",
+  "publisher": "zastrpay",
+  "version": "1.0.0",
+  "name": "Move to Bottom (Backlog)",
+  "description": "Adds a 'Move to bottom' command to the backlog item context menu, mirroring the built-in 'Move to top'.",
+  "public": false,
+  "categories": ["Azure Boards"],
+  "tags": ["backlog", "boards", "reorder", "productivity", "context-menu"],
+  "icons": {
+    "default": "images/logo.png"
+  },
+  "targets": [
+    { "id": "Microsoft.VisualStudio.Services" }
+  ],
+  "scopes": [
+    "vso.work_write"
+  ],
+  "content": {
+    "details": { "path": "overview.md" }
+  },
+  "files": [
+    { "path": "scripts", "addressable": true },
+    { "path": "images", "addressable": true }
+  ],
+  "contributions": [
+    {
+      "id": "move-to-bottom-menu",
+      "type": "ms.vss-web.action",
+      "description": "Moves the selected backlog item(s) to the bottom of the backlog.",
+      "targets": [
+        "ms.vss-work-web.backlog-item-menu"
+      ],
+      "properties": {
+        "text": "Move to bottom",
+        "title": "Move the selected item(s) to the bottom of the backlog",
+        "icon": "images/move-to-bottom.png",
+        "uri": "scripts/move-to-bottom.html",
+        "registeredObjectId": "move-to-bottom-menu"
+      }
+    }
+  ]
+}
