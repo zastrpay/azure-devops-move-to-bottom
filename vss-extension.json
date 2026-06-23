@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "move-to-bottom",
   "publisher": "zastrpay",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Move to Bottom (Backlog)",
   "description": "Adds a 'Move to bottom' command to the backlog item context menu, mirroring the built-in 'Move to top'.",
   "public": false,
