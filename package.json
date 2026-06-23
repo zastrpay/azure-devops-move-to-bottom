@@ -1,6 +1,6 @@
 {
   "name": "azure-devops-move-to-bottom",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Azure DevOps extension adding a 'Move to bottom' command to the backlog item context menu.",
   "private": true,
   "license": "MIT",

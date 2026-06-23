@@ -1,5 +1,5 @@
 import * as SDK from "azure-devops-extension-sdk";
-import { getClient, CommonServiceIds, IHostNavigationService } from "azure-devops-extension-api";
+import { getClient } from "azure-devops-extension-api";
 import { TeamContext } from "azure-devops-extension-api/Core";
 import { ReorderOperation, WorkRestClient } from "azure-devops-extension-api/Work";
 import { WorkItemTrackingRestClient } from "azure-devops-extension-api/WorkItemTracking";
@@ -27,8 +27,6 @@ SDK.register(CONTRIBUTION_ID, () => {
     return {
         execute: async (actionContext: IBacklogMenuActionContext): Promise<void> => {
             try {
-                console.log("[move-to-bottom] actionContext:", JSON.stringify(actionContext));
-
                 const ids =
                     actionContext.ids ||
                     actionContext.workItemIds ||
@@ -75,7 +73,6 @@ SDK.register(CONTRIBUTION_ID, () => {
                     .filter(link => !link.rel)
                     .map(link => link.target.id)
                     .filter(id => !movedSet.has(id));
-                console.log("[move-to-bottom] iteration", iteration.id, "top-level order:", JSON.stringify(topLevelIds));
                 const previousId = topLevelIds.length ? topLevelIds[topLevelIds.length - 1] : 0;
 
                 // 4. Mirror of the built-in "Move to top" ({previousId:0, nextId:<first>}):
@@ -89,12 +86,10 @@ SDK.register(CONTRIBUTION_ID, () => {
                     nextId: 0
                 } as unknown as ReorderOperation;
 
-                console.log("[move-to-bottom] reorder", iteration.id, JSON.stringify(operation));
                 await workClient.reorderIterationWorkItems(operation, teamContext, iteration.id);
 
-                // Reflect the new order in the UI.
-                const nav = await SDK.getService<IHostNavigationService>(CommonServiceIds.HostNavigationService);
-                nav.reload();
+                // No explicit page reload: Azure Boards' live updates reflect the reorder in
+                // place, the same way the built-in "Move to top" updates without a refresh.
             } catch (err) {
                 // Surface the real server error instead of an unhandled "[object Object]".
                 console.error("[move-to-bottom] reorder failed:", JSON.stringify(err), err);
