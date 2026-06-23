@@ -1,11 +1,13 @@
 # Move to Bottom (Azure DevOps Backlog)
 
 A small private Azure DevOps extension that adds a **Move to bottom** command to the
-**backlog item context menu** in Azure Boards — the mirror image of the built-in
+backlog item context menu in Azure Boards — the mirror image of the built-in
 **Move to top**.
 
-Right-click one or more items on a backlog → **Move to bottom** → they jump to the end
-of the backlog. No dragging, no typing a number into *Move to position…*.
+On a **Sprint backlog** (Sprints → Backlog), right-click one or more items → **Move to
+bottom** → they jump to the end of that iteration's list. It reorders within the iteration
+only and leaves the work item's parent untouched — the same scope as the built-in
+**Move to top**. No dragging, no typing a number into *Move to position…*.
 
 ---
 
@@ -15,15 +17,26 @@ Azure DevOps lets extensions contribute context-menu actions. This extension con
 a single [`ms.vss-web.action`](https://learn.microsoft.com/en-us/azure/devops/extend/develop/add-action)
 targeting `ms.vss-work-web.backlog-item-menu`. The handler (`src/move-to-bottom.ts`, bundled
 into `scripts/move-to-bottom.js`) registers with the
-[`azure-devops-extension-sdk`](https://www.npmjs.com/package/azure-devops-extension-sdk) and,
-when clicked, calls the Work REST client's `reorderBacklogWorkItems`
-with a [`ReorderOperation`](https://learn.microsoft.com/en-us/javascript/api/azure-devops-extension-api/reorderoperation)
-of `{ ids, previousId: null, nextId: 0 }`.
+[`azure-devops-extension-sdk`](https://www.npmjs.com/package/azure-devops-extension-sdk).
+When clicked it:
 
-`nextId: 0` means *"place after the last item"* — i.e. the bottom — exactly mirroring how
-**Move to top** uses `previousId: 0`. Because the boundary is expressed with `0`, there is
-no need to look up the current last item; the service computes the new order. The handler
-then reloads the page so the new order shows immediately.
+1. reads the selected work item's `System.IterationPath` and resolves the matching
+   **iteration id** via `getTeamIterations` (the id is required in the reorder URL);
+2. reads the iteration's current order via `getIterationWorkItems` and finds the
+   **last top-level item** (its current bottom);
+3. calls `reorderIterationWorkItems(operation, teamContext, iterationId)` with a
+   [`ReorderOperation`](https://learn.microsoft.com/en-us/javascript/api/azure-devops-extension-api/reorderoperation)
+   of `{ ids, parentId: 0, iterationPath, previousId: <last item>, nextId: 0 }`.
+
+That is the exact mirror of the built-in **Move to top** (which sends `previousId: 0,
+nextId: <first item>`): `nextId: 0` is the end of the list, `parentId: 0` keeps it a flat
+reorder that never re-parents, and `iterationPath` scopes it to the sprint. The handler then
+reloads the page so the new order shows immediately.
+
+> **Why the iteration API:** the product-backlog reorder (`reorderBacklogWorkItems`)
+> enforces an item's portfolio parent (an Issue under an Epic), so reordering it there fails
+> with `TF400486`. The **iteration** backlog is flat, so `reorderIterationWorkItems` reorders
+> the sprint list without touching parents — which is the desired behavior.
 
 > **Note on placement:** Azure DevOps renders extension-contributed actions in their own
 > group within the context menu (typically near the bottom), so **Move to bottom** appears
@@ -110,8 +123,9 @@ select your organization.)
 
 ## 5. Use it
 
-Open any backlog (Boards → Backlogs), right-click one or more work items, and choose
-**Move to bottom**. The backlog reloads with the item(s) at the end.
+Open a sprint backlog (**Sprints → Backlog**, e.g. the *Jun 2026* iteration), right-click
+one or more items, and choose **Move to bottom**. The page reloads with the item(s) at the
+end of that iteration's list.
 
 ---
 

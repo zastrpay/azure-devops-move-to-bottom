@@ -2,65 +2,99 @@ import * as SDK from "azure-devops-extension-sdk";
 import { getClient, CommonServiceIds, IHostNavigationService } from "azure-devops-extension-api";
 import { TeamContext } from "azure-devops-extension-api/Core";
 import { ReorderOperation, WorkRestClient } from "azure-devops-extension-api/Work";
+import { WorkItemTrackingRestClient } from "azure-devops-extension-api/WorkItemTracking";
 
 // Must match `properties.registeredObjectId` of the contribution in vss-extension.json.
 const CONTRIBUTION_ID = "move-to-bottom-menu";
 
 // Shape of the action context the backlog item menu hands to `execute`.
-// A multi-select passes `ids` / `workItemIds`; a single item passes `id`.
 interface IBacklogMenuActionContext {
     id?: number;
     ids?: number[];
     workItemIds?: number[];
 }
 
+// The reorder body expects the iteration's classification-node path, e.g.
+// System.IterationPath "C2D\Jun 2026" -> "\C2D\Iteration\Jun 2026".
+function toIterationClassificationPath(systemIterationPath: string): string {
+    const parts = systemIterationPath.split("\\");
+    const project = parts[0];
+    const rest = parts.slice(1).join("\\");
+    return "\\" + project + "\\Iteration\\" + rest;
+}
+
 SDK.register(CONTRIBUTION_ID, () => {
     return {
         execute: async (actionContext: IBacklogMenuActionContext): Promise<void> => {
             try {
+                console.log("[move-to-bottom] actionContext:", JSON.stringify(actionContext));
+
                 const ids =
                     actionContext.ids ||
                     actionContext.workItemIds ||
                     (actionContext.id != null ? [actionContext.id] : []);
-
                 if (ids.length === 0) {
                     return;
                 }
 
-                const webContext = SDK.getWebContext();
-                if (!webContext.project || !webContext.team) {
-                    // No team backlog in scope: there is nothing to reorder against.
+                const web = SDK.getWebContext();
+                if (!web.project || !web.team) {
+                    return;
+                }
+                const teamContext: TeamContext = {
+                    projectId: web.project.id,
+                    project: web.project.name,
+                    teamId: web.team.id,
+                    team: web.team.name
+                };
+
+                const workClient = getClient(WorkRestClient);
+                const witClient = getClient(WorkItemTrackingRestClient);
+
+                // 1. The item's own iteration is the sprint backlog we reorder within.
+                const item = await witClient.getWorkItem(ids[0], web.project.name, ["System.IterationPath"]);
+                const systemIterationPath = item.fields["System.IterationPath"] as string;
+                const iterationName = systemIterationPath.split("\\").pop() as string;
+
+                // 2. reorderIterationWorkItems needs the iteration id (it goes in the URL).
+                const iterations = await workClient.getTeamIterations(teamContext);
+                const iteration =
+                    iterations.find(it => it.path === systemIterationPath) ||
+                    iterations.find(it => it.name === iterationName);
+                if (!iteration) {
+                    console.error("[move-to-bottom] iteration not found for", systemIterationPath,
+                        iterations.map(it => ({ id: it.id, name: it.name, path: it.path })));
                     return;
                 }
 
-                const teamContext: TeamContext = {
-                    projectId: webContext.project.id,
-                    project: webContext.project.name,
-                    teamId: webContext.team.id,
-                    team: webContext.team.name
-                };
+                // 3. Find the current last top-level item in the iteration (the "bottom").
+                //    Top-level rows have no link type (rel === null); nested Tasks do.
+                const iterationItems = await workClient.getIterationWorkItems(teamContext, iteration.id);
+                const movedSet = new Set(ids);
+                const topLevelIds = iterationItems.workItemRelations
+                    .filter(link => !link.rel)
+                    .map(link => link.target.id)
+                    .filter(id => !movedSet.has(id));
+                console.log("[move-to-bottom] iteration", iteration.id, "top-level order:", JSON.stringify(topLevelIds));
+                const previousId = topLevelIds.length ? topLevelIds[topLevelIds.length - 1] : 0;
 
-                // parentId MUST be 0 ("top level") for a backlog reorder — never null.
-                // The Azure Boards product enforces this ("ParentId cannot be null");
-                // null makes the service think we reorder outside the item's immediate
-                // parent and it rejects with TF400486 / BacklogChangedException.
-                // nextId: 0 means "end of the list" -> the very bottom; previousId is
-                // left unspecified so the service appends after the current last item.
+                // 4. Mirror of the built-in "Move to top" ({previousId:0, nextId:<first>}):
+                //    place the selection after the current last item (nextId:0 = end),
+                //    scoped to the iteration, leaving the Epic/parent untouched (parentId:0).
                 const operation = {
                     ids,
                     parentId: 0,
-                    iterationPath: null,
-                    previousId: null,
+                    iterationPath: toIterationClassificationPath(systemIterationPath),
+                    previousId,
                     nextId: 0
                 } as unknown as ReorderOperation;
 
-                await getClient(WorkRestClient).reorderBacklogWorkItems(operation, teamContext);
+                console.log("[move-to-bottom] reorder", iteration.id, JSON.stringify(operation));
+                await workClient.reorderIterationWorkItems(operation, teamContext, iteration.id);
 
                 // Reflect the new order in the UI.
-                const navigationService = await SDK.getService<IHostNavigationService>(
-                    CommonServiceIds.HostNavigationService
-                );
-                navigationService.reload();
+                const nav = await SDK.getService<IHostNavigationService>(CommonServiceIds.HostNavigationService);
+                nav.reload();
             } catch (err) {
                 // Surface the real server error instead of an unhandled "[object Object]".
                 console.error("[move-to-bottom] reorder failed:", JSON.stringify(err), err);
