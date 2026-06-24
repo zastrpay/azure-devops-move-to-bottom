@@ -1,5 +1,5 @@
 import * as SDK from "azure-devops-extension-sdk";
-import { getClient } from "azure-devops-extension-api";
+import { getClient, CommonServiceIds, IHostNavigationService } from "azure-devops-extension-api";
 import { TeamContext } from "azure-devops-extension-api/Core";
 import { ReorderOperation, WorkRestClient } from "azure-devops-extension-api/Work";
 import { WorkItemTrackingRestClient } from "azure-devops-extension-api/WorkItemTracking";
@@ -88,8 +88,11 @@ SDK.register(CONTRIBUTION_ID, () => {
 
                 await workClient.reorderIterationWorkItems(operation, teamContext, iteration.id);
 
-                // No explicit page reload: Azure Boards' live updates reflect the reorder in
-                // place, the same way the built-in "Move to top" updates without a refresh.
+                // The sprint backlog does NOT auto-refresh reorders (only the Taskboard does),
+                // and an extension can't update the host grid in place like the in-process
+                // built-in. A reload is the only reliable way to show the new order.
+                const nav = await SDK.getService<IHostNavigationService>(CommonServiceIds.HostNavigationService);
+                nav.reload();
             } catch (err) {
                 // Surface the real server error instead of an unhandled "[object Object]".
                 console.error("[move-to-bottom] reorder failed:", JSON.stringify(err), err);

@@ -33,6 +33,12 @@ nextId: <first item>`): `nextId: 0` is the end of the list, `parentId: 0` keeps 
 reorder that never re-parents, and `iterationPath` scopes it to the sprint. The handler then
 reloads the page so the new order shows immediately.
 
+> **Why the full reload:** the sprint backlog does **not** auto-refresh reorders (only the
+> Taskboard does), and a sandboxed extension can't re-render the host grid in place the way
+> the in-process built-in *Move to top* does. A page reload is therefore the only reliable
+> way for the extension to reflect the change — it is the one behavioral difference from the
+> built-in command.
+
 > **Why the iteration API:** the product-backlog reorder (`reorderBacklogWorkItems`)
 > enforces an item's portfolio parent (an Issue under an Epic), so reordering it there fails
 > with `TF400486`. The **iteration** backlog is flat, so `reorderIterationWorkItems` reorders
